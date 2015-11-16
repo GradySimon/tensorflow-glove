@@ -1,3 +1,4 @@
+from __future__ import division
 from itertools import repeat, chain
 from collections import Counter, defaultdict
 from functools import partial
@@ -36,21 +37,23 @@ class Corpus(object):
 
     def fit(self, vocab_size=None, min_occurrences=1):
         word_counts = Counter()
-        cooccurrence_counts = defaultdict(Counter)
+        cooccurrence_counts = defaultdict(float)
         for region in self.tokenized_regions():
             word_counts.update(region)
             for left_context, word, right_context in self.region_context_windows(region):
-                cooccurrence_counts[word].update(chain(left_context, right_context))  
+                for i, context_word in enumerate(left_context[::-1]):
+                    cooccurrence_counts[(word, context_word)] += 1 / (i + 1) # 1 / distance from focal word
+                for i, context_word in enumerate(right_context):
+                    cooccurrence_counts[(word, context_word)] += 1 / (i + 1) # 1 / distance from focal word
         self._words = [word for word, count in word_counts.most_common(vocab_size) if count >= min_occurrences]
         self._word_index = {word: i for i, word in enumerate(self._words)}
-        dok_cooccurrence_matrix = dok_matrix((len(self._words), len(self._words)), dtype=np.uint32)
         word_set = set(self._words)
-        dok_cooccurrence_matrix.update(
-            {(self._word_index[x], self._word_index[y]): count
-              for x, counts in cooccurrence_counts.items() for y, count in counts.items()
-              if x in word_set and y in word_set}
-        )
-        self._cooccurrence_matrix = dok_cooccurrence_matrix
+        self._cooccurrence_matrix = {
+            (self._word_index[word], self._word_index[context_word]): count
+            for word, context_word in cooccurrence_counts
+            if word in word_set and context_word in word_set
+        }
+        
 
     def is_fit(self):
         """
@@ -84,10 +87,8 @@ class Corpus(object):
         its return value with `NULL_WORD`.
         """
         last_index = len(region) + 1
-        front_nulls = repeat(NULL_WORD, abs(min(start_index, 0)))
-        back_nulls = repeat(NULL_WORD, max(end_index - last_index, 0))
         selected_tokens = region[max(start_index, 0) : min(end_index, last_index) + 1]
-        return list(chain(front_nulls, selected_tokens, back_nulls))
+        return selected_tokens
 
     def region_context_windows(self, region):
         for i, word in enumerate(region):
