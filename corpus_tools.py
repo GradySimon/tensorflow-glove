@@ -49,11 +49,10 @@ class Corpus(object):
         self._word_index = {word: i for i, word in enumerate(self._words)}
         word_set = set(self._words)
         self._cooccurrence_matrix = {
-            (self._word_index[word], self._word_index[context_word]): count
-            for word, context_word in cooccurrence_counts
-            if word in word_set and context_word in word_set
+            (self._word_index[words[0]], self._word_index[words[1]]): count
+            for words, count in cooccurrence_counts.items()
+            if words[0] in word_set and words[1] in word_set
         }
-        
 
     def is_fit(self):
         """
