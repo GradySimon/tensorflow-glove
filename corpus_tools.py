@@ -1,15 +1,11 @@
 from __future__ import division
-from itertools import repeat, chain
 from collections import Counter, defaultdict
-from functools import partial
 import re
 import os
-import json
 import nltk
-from scipy.sparse import dok_matrix
-import numpy as np
 
 NULL_WORD = "<null>"
+
 
 class Corpus(object):
     def __init__(self, **kwargs):
@@ -42,9 +38,10 @@ class Corpus(object):
             word_counts.update(region)
             for left_context, word, right_context in self.region_context_windows(region):
                 for i, context_word in enumerate(left_context[::-1]):
-                    cooccurrence_counts[(word, context_word)] += 1 / (i + 1) # 1 / distance from focal word
+                    # add (1 / distance from focal word) for this pair
+                    cooccurrence_counts[(word, context_word)] += 1 / (i + 1)
                 for i, context_word in enumerate(right_context):
-                    cooccurrence_counts[(word, context_word)] += 1 / (i + 1) # 1 / distance from focal word
+                    cooccurrence_counts[(word, context_word)] += 1 / (i + 1)
         self._words = [word for word, count in word_counts.most_common(vocab_size) if count >= min_occurrences]
         self._word_index = {word: i for i, word in enumerate(self._words)}
         word_set = set(self._words)
@@ -76,7 +73,7 @@ class Corpus(object):
         from that string.
         """
         raise NotImplementedError()
-    
+
     @staticmethod
     def window(region, start_index, end_index):
         """
@@ -86,7 +83,7 @@ class Corpus(object):
         its return value with `NULL_WORD`.
         """
         last_index = len(region) + 1
-        selected_tokens = region[max(start_index, 0) : min(end_index, last_index) + 1]
+        selected_tokens = region[max(start_index, 0):min(end_index, last_index) + 1]
         return selected_tokens
 
     def region_context_windows(self, region):
@@ -106,7 +103,7 @@ class Corpus(object):
         if not self.is_fit():
             self.fit()
         return self._words
-    
+
     @property
     def word_index(self):
         if not self.is_fit():
@@ -130,7 +127,7 @@ class RedditCorpus(Corpus):
         """
         super(RedditCorpus, self).__init__(**kwargs)
         if os.path.isdir(path):
-            file_names =  filter(lambda p: not p.startswith('.'), os.listdir(path))
+            file_names = filter(lambda p: not p.startswith('.'), os.listdir(path))
             self.file_paths = [os.path.join(path, name) for name in file_names]
         else:
             self.file_paths = [path]
@@ -151,4 +148,3 @@ class RedditCorpus(Corpus):
     @staticmethod
     def tokenize(string):
         return nltk.wordpunct_tokenize(string.lower())
-
