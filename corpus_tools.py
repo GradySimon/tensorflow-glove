@@ -95,10 +95,6 @@ class Corpus(object):
             yield (left_context, word, right_context)
 
     @property
-    def context_windows(self):
-        return (self.region_context_windows(region) for region in corpus.tokenized_regions())
-
-    @property
     def words(self):
         if not self.is_fit():
             self.fit()
