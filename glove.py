@@ -8,9 +8,6 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
 
-REPORT_BATCH_SIZE = 10000
-TSNE_EPOCH_FREQ = 1
-
 class GloVeModel():
     def __init__(self, embedding_size, context_size, max_vocab_size=None, min_occurrences=1,
                  scaling_factor=3/4, cooccurrence_cap=100, batch_size=512, learning_rate=0.05,
@@ -100,7 +97,7 @@ class GloVeModel():
 
                 self.combined_embeddings = tf.add(focal_embeddings, context_embeddings)
 
-    def train(self, num_epochs):
+    def train(self, num_epochs, report_interval=10000, tsne_output_interval=5):
         batches = self.prepare_batches()
         with tf.Session(graph=self.graph) as session:
             tf.initialize_all_variables().run()
@@ -121,14 +118,14 @@ class GloVeModel():
                     _, total_loss_ = session.run([self.optimizer, self.total_loss],
                                                  feed_dict=feed_dict)
                     accumulated_loss += total_loss_
-                    if (batch_index + 1) % REPORT_BATCH_SIZE == 0:
+                    if (batch_index + 1) % report_interval == 0:
                         print("Epoch: {0}/{1}".format(epoch + 1, num_epochs))
                         print("Batch: {0}/{1}".format(batch_index + 1, len(batches)))
-                        print("Average loss: {}".format(accumulated_loss / REPORT_BATCH_SIZE))
+                        print("Average loss: {}".format(accumulated_loss / report_interval))
                         print("-----------------")
                         sys.stdout.flush()
                         accumulated_loss = 0
-                if (epoch + 1) % TSNE_EPOCH_FREQ == 0:
+                if (epoch + 1) % tsne_output_interval == 0:
                     print("Outputting t-SNE: {}".format(datetime.datetime.now().time()))
                     print("-----------------")
                     sys.stdout.flush()
