@@ -1,8 +1,6 @@
 from __future__ import division
 from collections import Counter, defaultdict
-import sys
 from random import shuffle
-import datetime
 import tensorflow as tf
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -92,21 +90,21 @@ class GloVeModel():
 
                 single_losses = tf.mul(weighting_factor, distance_expr)
                 self.total_loss = tf.reduce_sum(single_losses)
+                tf.scalar_summary("GloVe loss", self.total_loss)
                 self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(
                     self.total_loss)
+                self.summary = tf.merge_all_summaries()
 
                 self.combined_embeddings = tf.add(focal_embeddings, context_embeddings)
 
-    def train(self, num_epochs, report_interval=10000, tsne_output_interval=5):
+    def train(self, num_epochs, log_dir=None, report_interval=10000, tsne_output_interval=5):
         batches = self.prepare_batches()
+        total_steps = 0
         with tf.Session(graph=self.graph) as session:
+            summary_writer = tf.train.SummaryWriter(log_dir, graph_def=session.graph_def)
             tf.initialize_all_variables().run()
             for epoch in range(num_epochs):
                 shuffle(batches)
-                print("Batches shuffled")
-                print("-----------------")
-                sys.stdout.flush()
-                accumulated_loss = 0
                 for batch_index, batch in enumerate(batches):
                     i_s, j_s, counts = batch
                     if len(counts) != self.batch_size:
@@ -117,24 +115,15 @@ class GloVeModel():
                         self.cooccurrence_count: counts}
                     _, total_loss_ = session.run([self.optimizer, self.total_loss],
                                                  feed_dict=feed_dict)
-                    accumulated_loss += total_loss_
-                    if (batch_index + 1) % report_interval == 0:
-                        print("Epoch: {0}/{1}".format(epoch + 1, num_epochs))
-                        print("Batch: {0}/{1}".format(batch_index + 1, len(batches)))
-                        print("Average loss: {}".format(accumulated_loss / report_interval))
-                        print("-----------------")
-                        sys.stdout.flush()
-                        accumulated_loss = 0
+                    if log_dir is not None and (total_steps + 1) % report_interval == 0:
+                        summary_str = session.run(self.summary, feed_dict=feed_dict)
+                        summary_writer.add_summary(summary_str, total_steps)
+                    total_steps += 1
                 if (epoch + 1) % tsne_output_interval == 0:
-                    print("Outputting t-SNE: {}".format(datetime.datetime.now().time()))
-                    print("-----------------")
-                    sys.stdout.flush()
                     current_embeddings = self.combined_embeddings.eval()
                     output_tsne(current_embeddings, self.words, "epoch{:03d}.png".format(epoch + 1))
-                print("Epoch finished: {}".format(datetime.datetime.now().time()))
-                print("=================")
-                sys.stdout.flush()
             final_embeddings = self.combined_embeddings.eval()
+            summary_writer.close()
         return final_embeddings
 
     def prepare_batches(self):
