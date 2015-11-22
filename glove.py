@@ -8,7 +8,7 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
 
-REPORT_BATCH_SIZE = 5000
+REPORT_BATCH_SIZE = 10000
 TSNE_EPOCH_FREQ = 1
 
 class GloVeModel():
@@ -29,13 +29,12 @@ class GloVeModel():
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
-    def fit(self, corpus, num_epochs):
-        self.build_cooccurrence_matrix(corpus, self.max_vocab_size, self.min_occurrences,
-                                       self.left_context, self.right_context)
+    def fit_to_corpus(self, corpus):
+        self._fit_to_corpus(corpus, self.max_vocab_size, self.min_occurrences,
+                            self.left_context, self.right_context)
         self.build_graph()
-        self.train(num_epochs)
 
-    def build_cooccurrence_matrix(self, corpus, vocab_size, min_occurrences, left_size, right_size):
+    def _fit_to_corpus(self, corpus, vocab_size, min_occurrences, left_size, right_size):
         word_counts = Counter()
         cooccurrence_counts = defaultdict(float)
         for region in corpus:
@@ -96,7 +95,8 @@ class GloVeModel():
 
                 single_losses = tf.mul(weighting_factor, distance_expr)
                 self.total_loss = tf.reduce_sum(single_losses)
-                self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(self.total_loss)
+                self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(
+                    self.total_loss)
 
                 self.combined_embeddings = tf.add(focal_embeddings, context_embeddings)
 
