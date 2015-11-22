@@ -1,11 +1,20 @@
 from __future__ import division
 from collections import Counter, defaultdict
+import sys
+from random import shuffle
+import datetime
 import tensorflow as tf
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
 
+
+REPORT_BATCH_SIZE = 5000
+TSNE_EPOCH_FREQ = 1
 
 class GloVeModel():
     def __init__(self, embedding_size, context_size, max_vocab_size=None, min_occurrences=1,
-                 scaling_factor=3/4, cooccurrence_cap=100, batch_size=512, learning_rate=0.05):
+                 scaling_factor=3/4, cooccurrence_cap=100, batch_size=512, learning_rate=0.05,
+                 session=None):
         self.embedding_size = embedding_size
         if isinstance(context_size, tuple):
             self.left_context, self.right_context = context_size
@@ -20,11 +29,11 @@ class GloVeModel():
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
-    def fit(self, corpus):
-        self.words, self.word_index, self.cooccurrence_matrix = self.build_cooccurrence_matrix(
-            corpus, self.max_vocab_size, self.min_occurrences, self.left_context,
-            self.right_context)
+    def fit(self, corpus, num_epochs):
+        self.build_cooccurrence_matrix(corpus, self.max_vocab_size, self.min_occurrences,
+                                       self.left_context, self.right_context)
         self.build_graph()
+        self.train(num_epochs)
 
     def build_cooccurrence_matrix(self, corpus, vocab_size, min_occurrences, left_size, right_size):
         word_counts = Counter()
@@ -37,61 +46,104 @@ class GloVeModel():
                     cooccurrence_counts[(word, context_word)] += 1 / (i + 1)
                 for i, context_word in enumerate(right_context):
                     cooccurrence_counts[(word, context_word)] += 1 / (i + 1)
-            words = [word for word, count in word_counts.most_common(vocab_size)
-                     if count >= min_occurrences]
-            word_index = {word: i for i, word in enumerate(words)}
-            word_set = set(words)
-            cooccurrence_matrix = {
-                (word_index[words[0]], word_index[words[1]]): count
-                for words, count in cooccurrence_counts.items()
-                if words[0] in word_set and words[1] in word_set
-            }
-            return words, word_index, cooccurrence_matrix
+        self.words = [word for word, count in word_counts.most_common(vocab_size)
+                      if count >= min_occurrences]
+        self.word_index = {word: i for i, word in enumerate(self.words)}
+        self.cooccurrence_matrix = {
+            (self.word_index[words[0]], self.word_index[words[1]]): count
+            for words, count in cooccurrence_counts.items()
+            if words[0] in self.word_index and words[1] in self.word_index}
 
     def build_graph(self):
-        count_max = tf.constant([self.cooccurrence_cap], dtype=tf.float32)
-        scaling_factor = tf.constant([self.scaling_factor], dtype=tf.float32)
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            with self.graph.device(device_for_node):
+                count_max = tf.constant([self.cooccurrence_cap], dtype=tf.float32)
+                scaling_factor = tf.constant([self.scaling_factor], dtype=tf.float32)
 
-        focal_input = tf.placeholder(tf.int32, shape=[self.batch_size])
-        context_input = tf.placeholder(tf.int32, shape=[self.batch_size])
-        cooccurrence_count = tf.placeholder(tf.float32, shape=[self.batch_size])
+                self.focal_input = tf.placeholder(tf.int32, shape=[self.batch_size])
+                self.context_input = tf.placeholder(tf.int32, shape=[self.batch_size])
+                self.cooccurrence_count = tf.placeholder(tf.float32, shape=[self.batch_size])
 
-        focal_embeddings = tf.Variable(
-            tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0))
-        context_embeddings = tf.Variable(
-            tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0))
+                focal_embeddings = tf.Variable(
+                    tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0))
+                context_embeddings = tf.Variable(
+                    tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0))
 
-        focal_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0))
-        context_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0))
+                focal_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0))
+                context_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0))
 
-        focal_embedding = tf.nn.embedding_lookup([focal_embeddings], focal_input)
-        context_embedding = tf.nn.embedding_lookup([context_embeddings], context_input)
-        focal_bias = tf.nn.embedding_lookup([focal_biases], focal_input)
-        context_bias = tf.nn.embedding_lookup([context_biases], context_input)
+                focal_embedding = tf.nn.embedding_lookup([focal_embeddings], self.focal_input)
+                context_embedding = tf.nn.embedding_lookup([context_embeddings], self.context_input)
+                focal_bias = tf.nn.embedding_lookup([focal_biases], self.focal_input)
+                context_bias = tf.nn.embedding_lookup([context_biases], self.context_input)
 
-        weighting_factor = tf.minimum(
-            1.0,
-            tf.pow(
-                tf.div(cooccurrence_count, count_max),
-                scaling_factor))
+                weighting_factor = tf.minimum(
+                    1.0,
+                    tf.pow(
+                        tf.div(self.cooccurrence_count, count_max),
+                        scaling_factor))
 
-        embedding_product = tf.reduce_sum(tf.mul(focal_embedding, context_embedding), 1)
+                embedding_product = tf.reduce_sum(tf.mul(focal_embedding, context_embedding), 1)
 
-        log_cooccurrences = tf.log(tf.to_float(cooccurrence_count))
+                log_cooccurrences = tf.log(tf.to_float(self.cooccurrence_count))
 
-        distance_expr = tf.square(tf.add_n([
-            embedding_product,
-            focal_bias,
-            context_bias,
-            tf.neg(log_cooccurrences)]))
+                distance_expr = tf.square(tf.add_n([
+                    embedding_product,
+                    focal_bias,
+                    context_bias,
+                    tf.neg(log_cooccurrences)]))
 
-        single_losses = tf.mul(weighting_factor, distance_expr)
-        total_loss = tf.reduce_sum(single_losses)
-        optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(total_loss)
+                single_losses = tf.mul(weighting_factor, distance_expr)
+                self.total_loss = tf.reduce_sum(single_losses)
+                self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(self.total_loss)
 
-        combined_embeddings = tf.add(focal_embeddings, context_embeddings)
-        self._optimizer = optimizer
-        self._combined_embeddings = combined_embeddings
+                self.combined_embeddings = tf.add(focal_embeddings, context_embeddings)
+
+    def train(self, num_epochs):
+        batches = self.prepare_batches()
+        with tf.Session(graph=self.graph) as session:
+            tf.initialize_all_variables().run()
+            for epoch in range(num_epochs):
+                shuffle(batches)
+                print("Batches shuffled")
+                print("-----------------")
+                sys.stdout.flush()
+                accumulated_loss = 0
+                for batch_index, batch in enumerate(batches):
+                    i_s, j_s, counts = batch
+                    if len(counts) != self.batch_size:
+                        continue
+                    feed_dict = {
+                        self.focal_input: i_s,
+                        self.context_input: j_s,
+                        self.cooccurrence_count: counts}
+                    _, total_loss_ = session.run([self.optimizer, self.total_loss],
+                                                 feed_dict=feed_dict)
+                    accumulated_loss += total_loss_
+                    if (batch_index + 1) % REPORT_BATCH_SIZE == 0:
+                        print("Epoch: {0}/{1}".format(epoch + 1, num_epochs))
+                        print("Batch: {0}/{1}".format(batch_index + 1, len(batches)))
+                        print("Average loss: {}".format(accumulated_loss / REPORT_BATCH_SIZE))
+                        print("-----------------")
+                        sys.stdout.flush()
+                        accumulated_loss = 0
+                if (epoch + 1) % TSNE_EPOCH_FREQ == 0:
+                    print("Outputting t-SNE: {}".format(datetime.datetime.now().time()))
+                    print("-----------------")
+                    sys.stdout.flush()
+                    current_embeddings = self.combined_embeddings.eval()
+                    output_tsne(current_embeddings, self.words, "epoch{:03d}.png".format(epoch + 1))
+                print("Epoch finished: {}".format(datetime.datetime.now().time()))
+                print("=================")
+                sys.stdout.flush()
+            final_embeddings = self.combined_embeddings.eval()
+        return final_embeddings
+
+    def prepare_batches(self):
+        cooccurrences = [(pos[0], pos[1], count) for pos, count in self.cooccurrence_matrix.items()]
+        i_indices, j_indices, counts = zip(*cooccurrences)
+        return list(batchify(self.batch_size, i_indices, j_indices, counts))
 
     @property
     def vocab_size(self):
@@ -124,3 +176,31 @@ def device_for_node(n):
         return "/gpu:0"
     else:
         return "/cpu:0"
+
+
+def batchify(batch_size, *sequences):
+    for i in xrange(0, len(sequences[0]), batch_size):
+        yield tuple(sequence[i:i+batch_size] for sequence in sequences)
+
+
+def output_tsne(embeddings, words, filename, size=(100, 100), plot_only=1000):
+    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
+    low_dim_embs = tsne.fit_transform(embeddings[:plot_only, :])
+    labels = words[:plot_only]
+    plot_with_labels(low_dim_embs, labels, filename, size)
+
+
+def plot_with_labels(low_dim_embs, labels, filename='tsne.png', size=(100, 100)):
+    assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
+    figure = plt.figure(figsize=size)  # in inches
+    for i, label in enumerate(labels):
+        x, y = low_dim_embs[i, :]
+        plt.scatter(x, y)
+        plt.annotate(label,
+                     xy=(x, y),
+                     xytext=(5, 2),
+                     textcoords='offset points',
+                     ha='right',
+                     va='bottom')
+    figure.savefig(filename)
+    plt.close(figure)
