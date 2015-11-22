@@ -1,5 +1,6 @@
 from __future__ import division
 from collections import Counter, defaultdict
+import os
 from random import shuffle
 import tensorflow as tf
 from sklearn.manifold import TSNE
@@ -105,7 +106,8 @@ class GloVeModel():
             self.combined_embeddings = tf.add(focal_embeddings, context_embeddings,
                                               name="combined_embeddings")
 
-    def train(self, num_epochs, log_dir=None, report_interval=10000, tsne_output_interval=5):
+    def train(self, num_epochs, log_dir=None, summary_batch_interval=10000,
+              tsne_epoch_interval=None):
         batches = self.prepare_batches()
         total_steps = 0
         with tf.Session(graph=self.graph) as session:
@@ -123,13 +125,14 @@ class GloVeModel():
                         self.cooccurrence_count: counts}
                     _, total_loss_ = session.run([self.optimizer, self.total_loss],
                                                  feed_dict=feed_dict)
-                    if log_dir is not None and (total_steps + 1) % report_interval == 0:
+                    if log_dir and (total_steps + 1) % summary_batch_interval == 0:
                         summary_str = session.run(self.summary, feed_dict=feed_dict)
                         summary_writer.add_summary(summary_str, total_steps)
                     total_steps += 1
-                if (epoch + 1) % tsne_output_interval == 0:
+                if log_dir and tsne_epoch_interval and (epoch + 1) % tsne_epoch_interval == 0:
                     current_embeddings = self.combined_embeddings.eval()
-                    output_tsne(current_embeddings, self.words, "epoch{:03d}.png".format(epoch + 1))
+                    output_path = os.path.join(log_dir, "epoch{:03d}.png".format(epoch + 1))
+                    output_tsne(current_embeddings, self.words, output_path)
             final_embeddings = self.combined_embeddings.eval()
             summary_writer.close()
         return final_embeddings
