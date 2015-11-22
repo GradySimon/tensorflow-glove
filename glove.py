@@ -50,52 +50,60 @@ class GloVeModel():
 
     def build_graph(self):
         self.graph = tf.Graph()
-        with self.graph.as_default():
-            with self.graph.device(device_for_node):
-                count_max = tf.constant([self.cooccurrence_cap], dtype=tf.float32)
-                scaling_factor = tf.constant([self.scaling_factor], dtype=tf.float32)
+        with self.graph.as_default(), self.graph.device(device_for_node):
+            count_max = tf.constant([self.cooccurrence_cap], dtype=tf.float32,
+                                    name='max_cooccurrence_count')
+            scaling_factor = tf.constant([self.scaling_factor], dtype=tf.float32,
+                                         name="scaling_factor")
 
-                self.focal_input = tf.placeholder(tf.int32, shape=[self.batch_size])
-                self.context_input = tf.placeholder(tf.int32, shape=[self.batch_size])
-                self.cooccurrence_count = tf.placeholder(tf.float32, shape=[self.batch_size])
+            self.focal_input = tf.placeholder(tf.int32, shape=[self.batch_size], name="focal_words")
+            self.context_input = tf.placeholder(tf.int32, shape=[self.batch_size],
+                                                name="context_words")
+            self.cooccurrence_count = tf.placeholder(tf.float32, shape=[self.batch_size],
+                                                     name="cooccurrence_count")
 
-                focal_embeddings = tf.Variable(
-                    tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0))
-                context_embeddings = tf.Variable(
-                    tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0))
+            focal_embeddings = tf.Variable(
+                tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0),
+                name="focal_embeddings")
+            context_embeddings = tf.Variable(
+                tf.random_uniform([self.vocab_size, self.embedding_size], 1.0, -1.0),
+                name="context_embeddings")
 
-                focal_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0))
-                context_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0))
+            focal_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0),
+                                       name='focal_biases')
+            context_biases = tf.Variable(tf.random_uniform([self.vocab_size], 1.0, -1.0),
+                                         name="context_biases")
 
-                focal_embedding = tf.nn.embedding_lookup([focal_embeddings], self.focal_input)
-                context_embedding = tf.nn.embedding_lookup([context_embeddings], self.context_input)
-                focal_bias = tf.nn.embedding_lookup([focal_biases], self.focal_input)
-                context_bias = tf.nn.embedding_lookup([context_biases], self.context_input)
+            focal_embedding = tf.nn.embedding_lookup([focal_embeddings], self.focal_input)
+            context_embedding = tf.nn.embedding_lookup([context_embeddings], self.context_input)
+            focal_bias = tf.nn.embedding_lookup([focal_biases], self.focal_input)
+            context_bias = tf.nn.embedding_lookup([context_biases], self.context_input)
 
-                weighting_factor = tf.minimum(
-                    1.0,
-                    tf.pow(
-                        tf.div(self.cooccurrence_count, count_max),
-                        scaling_factor))
+            weighting_factor = tf.minimum(
+                1.0,
+                tf.pow(
+                    tf.div(self.cooccurrence_count, count_max),
+                    scaling_factor))
 
-                embedding_product = tf.reduce_sum(tf.mul(focal_embedding, context_embedding), 1)
+            embedding_product = tf.reduce_sum(tf.mul(focal_embedding, context_embedding), 1)
 
-                log_cooccurrences = tf.log(tf.to_float(self.cooccurrence_count))
+            log_cooccurrences = tf.log(tf.to_float(self.cooccurrence_count))
 
-                distance_expr = tf.square(tf.add_n([
-                    embedding_product,
-                    focal_bias,
-                    context_bias,
-                    tf.neg(log_cooccurrences)]))
+            distance_expr = tf.square(tf.add_n([
+                embedding_product,
+                focal_bias,
+                context_bias,
+                tf.neg(log_cooccurrences)]))
 
-                single_losses = tf.mul(weighting_factor, distance_expr)
-                self.total_loss = tf.reduce_sum(single_losses)
-                tf.scalar_summary("GloVe loss", self.total_loss)
-                self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(
-                    self.total_loss)
-                self.summary = tf.merge_all_summaries()
+            single_losses = tf.mul(weighting_factor, distance_expr)
+            self.total_loss = tf.reduce_sum(single_losses)
+            tf.scalar_summary("GloVe loss", self.total_loss)
+            self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(
+                self.total_loss)
+            self.summary = tf.merge_all_summaries()
 
-                self.combined_embeddings = tf.add(focal_embeddings, context_embeddings)
+            self.combined_embeddings = tf.add(focal_embeddings, context_embeddings,
+                                              name="combined_embeddings")
 
     def train(self, num_epochs, log_dir=None, report_interval=10000, tsne_output_interval=5):
         batches = self.prepare_batches()
