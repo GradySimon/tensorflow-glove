@@ -42,7 +42,8 @@ class Corpus(object):
                     cooccurrence_counts[(word, context_word)] += 1 / (i + 1)
                 for i, context_word in enumerate(right_context):
                     cooccurrence_counts[(word, context_word)] += 1 / (i + 1)
-        self._words = [word for word, count in word_counts.most_common(vocab_size) if count >= min_occurrences]
+        self._words = [word for word, count in word_counts.most_common(vocab_size)
+                       if count >= min_occurrences]
         self._word_index = {word: i for i, word in enumerate(self._words)}
         word_set = set(self._words)
         self._cooccurrence_matrix = {
