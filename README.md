@@ -9,7 +9,7 @@ This is my implementation of their model in [TensorFlow](http://www.tensorflow.o
 
 Like this:
 
-```
+```python
 >>> import tf_glove
 >>> model = tf_glove.GloVeModel(embedding_size=300, context_size=10)
 >>> model.fit_to_corpus(corpus)
