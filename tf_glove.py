@@ -12,9 +12,8 @@ class NotFitToCorpusError(Exception):
     pass
 
 class GloVeModel():
-    def __init__(self, embedding_size, context_size, max_vocab_size=None, min_occurrences=1,
-                 scaling_factor=3/4, cooccurrence_cap=100, batch_size=512, learning_rate=0.05,
-                 session=None):
+    def __init__(self, embedding_size, context_size, max_vocab_size=100000, min_occurrences=1,
+                 scaling_factor=3/4, cooccurrence_cap=100, batch_size=512, learning_rate=0.05):
         self.embedding_size = embedding_size
         if isinstance(context_size, tuple):
             self.left_context, self.right_context = context_size
@@ -117,7 +116,7 @@ class GloVeModel():
             self.__combined_embeddings = tf.add(focal_embeddings, context_embeddings,
                                                 name="combined_embeddings")
 
-    def train(self, num_epochs, log_dir=None, summary_batch_interval=10000,
+    def train(self, num_epochs, log_dir=None, summary_batch_interval=1000,
               tsne_epoch_interval=None):
         should_write_summaries = log_dir is not None and summary_batch_interval
         should_generate_tsne = log_dir is not None and tsne_epoch_interval
@@ -145,7 +144,7 @@ class GloVeModel():
                 if should_generate_tsne and (epoch + 1) % tsne_epoch_interval == 0:
                     current_embeddings = self.__combined_embeddings.eval()
                     output_path = os.path.join(log_dir, "epoch{:03d}.png".format(epoch + 1))
-                    self.generate_tsne(output_path, current_embeddings)
+                    self.generate_tsne(output_path, embeddings=current_embeddings)
             self.__embeddings = self.__combined_embeddings.eval()
             if should_write_summaries:
                 summary_writer.close()
@@ -186,7 +185,7 @@ class GloVeModel():
             raise NotFitToCorpusError("Need to fit model to corpus before looking up word ids.")
         return self.__word_to_id[word]
 
-    def generate_tsne(self, path=None, embeddings=None, size=(100, 100), word_count=1000):
+    def generate_tsne(self, path=None, size=(100, 100), word_count=1000, embeddings=None):
         if embeddings is None:
             embeddings = self.embeddings
         from sklearn.manifold import TSNE
