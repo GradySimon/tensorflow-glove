@@ -5,6 +5,22 @@ This is an implementation of [GloVe](http://nlp.stanford.edu/projects/glove/) (G
 
 This is my implementation of their model in [TensorFlow](http://www.tensorflow.org/), a "library for numerical computation using data flow graphs" by Google.
 
+## How do I use it?
+
+Like this:
+
+```
+>>> import tf_glove
+>>> model = tf_glove.GloVeModel(embedding_size=300, context_size=10)
+>>> model.fit_to_corpus(corpus)
+>>> model.train(num_epochs=100)
+>>> model.embedding_for("reddit")
+...
+
+```
+
+For a more complete introduction, see the [Getting Started notebook](https://github.com/GradySimon/tf-glove/blob/master/Getting%20Started.ipynb).
+
 ## Credits
 Naturally, most of the credit goes to Jeffery Pennington, Richard Socher, and Christopher Manning, who developed the model, published a paper about it (see references, and released an implementation in C.
 
