@@ -15,9 +15,13 @@ Like this:
 >>> model.fit_to_corpus(corpus)
 >>> model.train(num_epochs=100)
 >>> model.embedding_for("reddit")
-...
-
+array([ 0.77469945,  0.06020461,
+        0.37193006, -0.44537717,
+        ...
+        0.29987332, -0.12688215,], dtype=float32)
+>>> model.generate_tsne()
 ```
+![t-SNE visualization](https://cloud.githubusercontent.com/assets/1183957/11329891/f1682f8e-9156-11e5-8462-33ba46bfb16c.png)
 
 For a more complete introduction, see the [Getting Started notebook](https://github.com/GradySimon/tf-glove/blob/master/Getting%20Started.ipynb).
 
