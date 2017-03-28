@@ -96,7 +96,7 @@ class GloVeModel():
                     tf.div(self.__cooccurrence_count, count_max),
                     scaling_factor))
 
-            embedding_product = tf.reduce_sum(tf.mul(focal_embedding, context_embedding), 1)
+            embedding_product = tf.reduce_sum(tf.multiply(focal_embedding, context_embedding), 1)
 
             log_cooccurrences = tf.log(tf.to_float(self.__cooccurrence_count))
 
@@ -104,14 +104,14 @@ class GloVeModel():
                 embedding_product,
                 focal_bias,
                 context_bias,
-                tf.neg(log_cooccurrences)]))
+                tf.negative(log_cooccurrences)]))
 
-            single_losses = tf.mul(weighting_factor, distance_expr)
+            single_losses = tf.multiply(weighting_factor, distance_expr)
             self.__total_loss = tf.reduce_sum(single_losses)
-            tf.scalar_summary("GloVe loss", self.__total_loss)
+            tf.summary.scalar("GloVe loss", self.__total_loss)
             self.__optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(
                 self.__total_loss)
-            self.__summary = tf.merge_all_summaries()
+            self.__summary = tf.summary.merge_all()
 
             self.__combined_embeddings = tf.add(focal_embeddings, context_embeddings,
                                                 name="combined_embeddings")
@@ -127,6 +127,7 @@ class GloVeModel():
                 summary_writer = tf.train.SummaryWriter(log_dir, graph_def=session.graph_def)
             tf.initialize_all_variables().run()
             for epoch in range(num_epochs):
+                print('epoch: {}.'.format(epoch))
                 shuffle(batches)
                 for batch_index, batch in enumerate(batches):
                     i_s, j_s, counts = batch
@@ -224,7 +225,7 @@ def _device_for_node(n):
 
 
 def _batchify(batch_size, *sequences):
-    for i in xrange(0, len(sequences[0]), batch_size):
+    for i in range(0, len(sequences[0]), batch_size):
         yield tuple(sequence[i:i+batch_size] for sequence in sequences)
 
 
