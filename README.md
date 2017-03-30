@@ -26,7 +26,7 @@ array([ 0.77469945,  0.06020461,
 For a more complete introduction, see the [Getting Started notebook](https://github.com/GradySimon/tf-glove/blob/master/Getting%20Started.ipynb).
 
 ## Credits
-Naturally, most of the credit goes to Jeffery Pennington, Richard Socher, and Christopher Manning, who developed the model, published a paper about it (see references, and released an implementation in C.
+Naturally, most of the credit goes to Jeffery Pennington, Richard Socher, and Christopher Manning, who developed the model, published a paper about it, and released an implementation in C.
 
 Thanks also to Jon Gauthier ([@hans](https://github.com/hans)), who wrote a Python implementation of the model and a blog post describing that implementation, which were both very useful references as well.
 
