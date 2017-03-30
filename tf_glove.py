@@ -124,10 +124,10 @@ class GloVeModel():
         total_steps = 0
         with tf.Session(graph=self.__graph) as session:
             if should_write_summaries:
+                print("Writing TensorBoard summaries to {}".format(log_dir))
                 summary_writer = tf.summary.FileWriter(log_dir, graph=session.graph)
             tf.global_variables_initializer().run()
             for epoch in range(num_epochs):
-                print('epoch: {}.'.format(epoch))
                 shuffle(batches)
                 for batch_index, batch in enumerate(batches):
                     i_s, j_s, counts = batch
