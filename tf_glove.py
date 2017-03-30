@@ -108,7 +108,7 @@ class GloVeModel():
 
             single_losses = tf.multiply(weighting_factor, distance_expr)
             self.__total_loss = tf.reduce_sum(single_losses)
-            tf.summary.scalar("GloVe loss", self.__total_loss)
+            tf.summary.scalar("GloVe_loss", self.__total_loss)
             self.__optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(
                 self.__total_loss)
             self.__summary = tf.summary.merge_all()
@@ -124,8 +124,8 @@ class GloVeModel():
         total_steps = 0
         with tf.Session(graph=self.__graph) as session:
             if should_write_summaries:
-                summary_writer = tf.train.SummaryWriter(log_dir, graph_def=session.graph_def)
-            tf.initialize_all_variables().run()
+                summary_writer = tf.summary.FileWriter(log_dir, graph=session.graph)
+            tf.global_variables_initializer().run()
             for epoch in range(num_epochs):
                 print('epoch: {}.'.format(epoch))
                 shuffle(batches)
