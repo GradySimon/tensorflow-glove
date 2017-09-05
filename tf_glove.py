@@ -116,13 +116,14 @@ class GloVeModel():
             self.__combined_embeddings = tf.add(focal_embeddings, context_embeddings,
                                                 name="combined_embeddings")
 
-    def train(self, num_epochs, log_dir=None, summary_batch_interval=1000,
-              tsne_epoch_interval=None):
+    def train(self, num_epochs, log_dir=None,summary_batch_interval=1000,
+              tsne_epoch_interval=None, model_dir='model_dir/glove_model'):
         should_write_summaries = log_dir is not None and summary_batch_interval
         should_generate_tsne = log_dir is not None and tsne_epoch_interval
         batches = self.__prepare_batches()
         total_steps = 0
-        with tf.Session(graph=self.__graph) as session:
+        with tf.Session(graph=self.__graph, config=tf.ConfigProto(log_device_placement=True)) as session:
+            saver = tf.train.Saver()
             if should_write_summaries:
                 print("Writing TensorBoard summaries to {}".format(log_dir))
                 summary_writer = tf.summary.FileWriter(log_dir, graph=session.graph)
@@ -146,10 +147,22 @@ class GloVeModel():
                     current_embeddings = self.__combined_embeddings.eval()
                     output_path = os.path.join(log_dir, "epoch{:03d}.png".format(epoch + 1))
                     self.generate_tsne(output_path, embeddings=current_embeddings)
+            
+            saver.save(session, model_dir)
             self.__embeddings = self.__combined_embeddings.eval()
             if should_write_summaries:
                 summary_writer.close()
-
+    
+    def restore(self):
+        with tf.Session(graph=self.__graph) as session:
+            saver = tf.train.Saver()
+            ckpt = tf.train.get_checkpoint_state('model_dir/')
+            if ckpt and ckpt.model_checkpoint_path:
+                print('\n:: restoring checkpoint from', ckpt.model_checkpoint_path, '\n')
+                saver.restore(session, ckpt.model_checkpoint_path)
+            else:
+                print('\n:: <ERR> checkpoint not found! \n')
+            
     def embedding_for(self, word_str_or_id):
         if isinstance(word_str_or_id, str):
             return self.embeddings[self.__word_to_id[word_str_or_id]]
