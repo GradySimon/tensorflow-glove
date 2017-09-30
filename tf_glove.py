@@ -3,6 +3,7 @@ from collections import Counter, defaultdict
 import os
 from random import shuffle
 import tensorflow as tf
+import sklearn
 
 
 class NotTrainedError(Exception):
